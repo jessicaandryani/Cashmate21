@@ -14,7 +14,7 @@ export default class Pencatatan extends BaseModel {
   declare jumlah: number
 
   @column()
-  declare tipe: string
+  declare tipe: 'pemasukan' | 'pengeluaran' // ⬅️ opsional: bantu validasi tipe di level kode
 
   @column()
   declare catatan: string | null
@@ -25,15 +25,15 @@ export default class Pencatatan extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  @column()
-  declare public userId: number
+  @column({ columnName: 'user_id' }) // ⬅️ eksplisitkan nama kolom jika pakai snake_case
+  declare userId: number
 
   @belongsTo(() => User)
-  declare public user: BelongsTo<typeof User>
+  declare user: BelongsTo<typeof User>
 
-  @column()
-  declare public kategoriId: number
+  @column({ columnName: 'kategori_id' }) // ⬅️ juga disarankan eksplisitkan ini
+  declare kategoriId: number
 
   @belongsTo(() => Kategori)
-  declare public kategori: BelongsTo<typeof Kategori>
+  declare kategori: BelongsTo<typeof Kategori>
 }

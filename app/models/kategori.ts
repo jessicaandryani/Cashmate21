@@ -3,6 +3,8 @@ import { BaseModel, column, hasMany } from '@adonisjs/lucid/orm'
 import Pencatatan from './pencatatan.js'
 import type { HasMany } from '@adonisjs/lucid/types/relations'
 export default class Kategori extends BaseModel {
+  public static table = 'kategori' // 👈 ini yang penting
+
   @column({ isPrimary: true })
   declare id: number
 

@@ -8,8 +8,8 @@ export default class extends BaseSchema {
       table.increments('id') // Primary key
       table.string('nama').notNullable()
       table.enum('tipe', ['Pemasukkan', 'Pengeluaran']).notNullable()
-      table.timestamp('created_at')
-      table.timestamp('updated_at')
+      table.dateTime('created_at').notNullable().defaultTo(this.now())
+      table.dateTime('updated_at').notNullable().defaultTo(this.now())      
     })
   }
 

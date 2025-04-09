@@ -2,7 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import Pencatatan from '../models/pencatatan.js'
 
 export default class PencatatanController {
-  async index({ auth }: HttpContext) {
+  async index({ auth, request }: HttpContext) {
     if (!auth.user) {
       return {
         message: 'User tidak terautentikasi',
@@ -10,9 +10,30 @@ export default class PencatatanController {
       }
     }
 
-    const data = await Pencatatan.query()
-      .where('user_id', auth.user.id) // Hanya data milik user yang login
-      .select('id', 'jumlah', 'tipe', 'catatan', 'kategoriId')
+    const bulan = request.input('bulan') // format: '2025-04'
+    const minggu = request.input('minggu') // format: '2025-04-07'
+
+    const query = Pencatatan.query()
+      .where('user_id', auth.user.id)
+      .preload('kategori')
+      .select('id', 'jumlah', 'tipe', 'catatan', 'kategoriId', 'created_at')
+      .orderBy('created_at', 'desc') // Urutkan dari terbaru
+
+    // Filter berdasarkan bulan
+    if (bulan) {
+      query.whereRaw("to_char(created_at, 'YYYY-MM') = ?", [bulan])
+    }
+
+    // Filter berdasarkan minggu (dari tanggal awal minggu)
+    if (minggu) {
+      const start = new Date(minggu)
+      const end = new Date(start)
+      end.setDate(start.getDate() + 6)
+
+      query.whereBetween('created_at', [start.toISOString(), end.toISOString()])
+    }
+
+    const data = await query
 
     return {
       message: 'Berhasil Menampilkan Data Catatan Keuangan',
@@ -28,15 +49,35 @@ export default class PencatatanController {
       }
     }
 
-    const data = request.body()
-    const user = auth.user
+    const data = request.only(['jumlah', 'tipe', 'catatan', 'kategori'])
+
+    if (!['pemasukan', 'pengeluaran'].includes(data.tipe)) {
+      return {
+        message: 'Tipe harus berupa "pemasukan" atau "pengeluaran"',
+        error: true,
+      }
+    }
+
+    if (!data.jumlah || isNaN(data.jumlah)) {
+      return {
+        message: 'Jumlah wajib diisi dan harus berupa angka',
+        error: true,
+      }
+    }
+
+    if (!data.kategori) {
+      return {
+        message: 'Kategori wajib diisi',
+        error: true,
+      }
+    }
 
     const newData = await Pencatatan.create({
       jumlah: data.jumlah,
       tipe: data.tipe,
       catatan: data.catatan,
-      kategoriId: data.kategori, // Menambahkan kategoriId
-      userId: user.id, // Pastikan menyimpan user ID
+      kategoriId: data.kategori,
+      userId: auth.user.id,
     })
 
     return {
@@ -55,7 +96,7 @@ export default class PencatatanController {
 
     const data = await Pencatatan.query()
       .where('id', params.id)
-      .where('user_id', auth.user.id) // Pastikan user hanya bisa melihat miliknya
+      .where('user_id', auth.user.id)
       .first()
 
     if (!data) {
@@ -79,11 +120,25 @@ export default class PencatatanController {
       }
     }
 
-    const data = request.body()
+    const data = request.only(['jumlah', 'tipe', 'catatan'])
+
+    if (!['pemasukan', 'pengeluaran'].includes(data.tipe)) {
+      return {
+        message: 'Tipe harus berupa "pemasukan" atau "pengeluaran"',
+        error: true,
+      }
+    }
+
+    if (!data.jumlah || isNaN(data.jumlah)) {
+      return {
+        message: 'Jumlah wajib diisi dan harus berupa angka',
+        error: true,
+      }
+    }
 
     const pencatatan = await Pencatatan.query()
       .where('id', params.id)
-      .where('user_id', auth.user.id) // Hanya bisa update milik user
+      .where('user_id', auth.user.id)
       .first()
 
     if (!pencatatan) {
@@ -93,11 +148,13 @@ export default class PencatatanController {
       }
     }
 
-    await pencatatan.merge({
-      jumlah: data.jumlah,
-      tipe: data.tipe,
-      catatan: data.catatan,
-    }).save()
+    await pencatatan
+      .merge({
+        jumlah: data.jumlah,
+        tipe: data.tipe,
+        catatan: data.catatan,
+      })
+      .save()
 
     return {
       message: 'Berhasil Update Catatan Keuangan',
@@ -115,7 +172,7 @@ export default class PencatatanController {
 
     const pencatatan = await Pencatatan.query()
       .where('id', params.id)
-      .where('user_id', auth.user.id) // Pastikan user hanya bisa menghapus miliknya
+      .where('user_id', auth.user.id)
       .first()
 
     if (!pencatatan) {
