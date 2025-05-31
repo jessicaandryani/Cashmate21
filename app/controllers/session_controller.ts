@@ -27,14 +27,15 @@ export default class SessionController {
   
 
   async register({ request }: HttpContext) {
-    const { email, password, fullname } = request.only(['email', 'password', 'fullname'])
-  
+    const { email, password, fullName } = request.only(['email', 'password', 'fullName'])
+
     const user = new User()
-    user.fullName = fullname
+    user.fullName = fullName
     user.email = email
-    user.password = password // tidak perlu hash manual, biar `AuthFinder` yang handle
-  
+    user.password = password
+    
     await user.save()
+    
   
     return {
       message: 'Success Register',

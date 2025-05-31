@@ -120,7 +120,8 @@ export default class PencatatanController {
       }
     }
 
-    const data = request.only(['jumlah', 'tipe', 'catatan'])
+    const data = request.only(['jumlah', 'tipe', 'catatan', 'kategori_id']);
+
 
     if (!['pemasukan', 'pengeluaran'].includes(data.tipe)) {
       return {
@@ -149,12 +150,14 @@ export default class PencatatanController {
     }
 
     await pencatatan
-      .merge({
-        jumlah: data.jumlah,
-        tipe: data.tipe,
-        catatan: data.catatan,
-      })
-      .save()
+    .merge({
+      jumlah: data.jumlah,
+      tipe: data.tipe,
+      catatan: data.catatan,
+      kategoriId: data.kategori_id, // ← tambahkan ini
+    })
+    .save();
+  
 
     return {
       message: 'Berhasil Update Catatan Keuangan',
