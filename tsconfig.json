@@ -7,6 +7,9 @@
     "paths": {
       "@ioc:Adonis/*": [
         "node_modules/@adonisjs/*"
+      ],
+      "@adonisjs/*": [
+        "node_modules/@adonisjs/*" // Tambahkan baris ini
       ]
     }
   }

@@ -16,4 +16,5 @@ router.use([
 
 export const middleware = router.named({
   auth: () => import('#middleware/auth_middleware'),
+  internalApiKey: () => import('#middleware/auth_internal_api_key_middleware')
 })

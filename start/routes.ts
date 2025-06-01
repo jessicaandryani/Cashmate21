@@ -17,6 +17,7 @@ import { writeFile } from 'node:fs/promises'
 const PencatatanController = () => import('../app/controllers/pencatatan_controller.js')
 const SessionController = () => import('#controllers/session_controller')
 const ProfileController = () => import('#controllers/profile_controller')
+const ArticlesController = () => import('#controllers/articles_controller') // Import controller artikel
 
 router.get('/profile', async ({ auth }) => {
   const user = await auth.getUserOrFail()
@@ -92,3 +93,18 @@ router.post('/login', [SessionController, 'login'])
 router.delete('/logout', [SessionController, 'logout']).use(middleware.auth({ guards: ['api'] }))
 router.get('/kategori', [KategoriController, 'index']).use(middleware.auth({ guards: ['api'] }))
 router.post('/kategori', [KategoriController, 'store']).use(middleware.auth({ guards: ['api'] }))
+
+// Grup rute untuk API articles yang dilindungi oleh internalApiKey middleware
+router
+  .group(() => {
+    router.get('/articles', [ArticlesController, 'index'])
+    router.get('/articles/:id', [ArticlesController, 'show'])
+    router.post('/articles', [ArticlesController, 'store'])
+  })
+  .prefix('/api')
+  .use(middleware.internalApiKey())
+
+// Rute dasar (jika belum ada)
+router.get('/', async () => {
+  return { hello: 'world' }
+})
