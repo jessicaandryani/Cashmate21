@@ -24,6 +24,11 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column()
   declare avatar: string | null
 
+  @column()
+  declare googleId: string | null
+
+  @column.dateTime({ serializeAs: 'email_verified_at' })
+  declare emailVerifiedAt: DateTime | null
 
   @column({ serializeAs: null })
   declare password: string
