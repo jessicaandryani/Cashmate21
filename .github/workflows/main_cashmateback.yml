@@ -1,0 +1,75 @@
+name: Build and deploy AdonisJS app to Azure Web App - cashmateBack
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create temporary .env
+        run: |
+          echo "APP_KEY=dummy_app_key_123" >> .env
+          echo "HOST=0.0.0.0" >> .env
+          echo "PORT=3333" >> .env
+          echo "NODE_ENV=production" >> .env
+          echo "LOG_LEVEL=info" >> .env
+          echo "DB_CONNECTION=mysql" >> .env
+          echo "DB_HOST=localhost" >> .env
+          echo "DB_PORT=3306" >> .env
+          echo "DB_USER=root" >> .env
+          echo "DB_PASSWORD=" >> .env
+          echo "DB_DATABASE=cashmate" >> .env
+          echo "BREVO_API_KEY=testing123" >> .env
+
+      - name: Build AdonisJS project
+        run: node ace build --ignore-ts-errors
+
+      - name: Upload artifact for deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: adonis-app
+          path: .
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: adonis-app
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_234EB81B30604671942E73748812DEF2 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E50871931C7242ECBEFB6D4ACF38C1DC }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_4D7D5F9959C34154B3ED7CB62C59DA66 }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'cashmateBack'
+          slot-name: 'Production'
+          package: .
