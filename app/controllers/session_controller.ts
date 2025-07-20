@@ -1,25 +1,26 @@
+// app/controllers/session_controller.ts
 import type { HttpContext } from "@adonisjs/core/http"
-import User from "../models/user.js" // Pastikan path ini benar ke model User Anda
+import User from "../models/user.js"
 import { OAuth2Client } from "google-auth-library"
-// schema dan rules mungkin tidak lagi diperlukan di file ini jika validasi dipindah ke model atau tidak digunakan di sini
 import { schema, rules } from "@adonisjs/validator"
 import { DateTime } from "luxon"
-import { sendWelcomeEmail } from "../services/send_welcome_email.js" // 👈 Impor layanan email Anda
+import { sendWelcomeEmail } from "../services/send_welcome_email.js" // Pastikan ini diimpor
+import crypto from 'node:crypto'
+// import hash from '@adonisjs/core/services/hash' // Tidak perlu jika model menghash otomatis
 
-// Nama kelas controller biasanya diawali huruf besar: SessionController
-export default class SessionController { // Mengganti session_controller menjadi SessionController
+export default class SessionController {
   private googleClient: OAuth2Client
 
   constructor() {
-    // Pastikan GOOGLE_CLIENT_ID dan GOOGLE_CLIENT_SECRET ada di .env Anda
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       console.warn("PERINGATAN: GOOGLE_CLIENT_ID atau GOOGLE_CLIENT_SECRET tidak dikonfigurasi di .env. Fitur Google Login mungkin tidak berfungsi.")
-      this.googleClient = new OAuth2Client('', '') // Inisialisasi default jika env var tidak ada
+      this.googleClient = new OAuth2Client('', '')
     } else {
       this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET)
     }
   }
 
+  // ... (method login dan register Anda tetap sama) ...
   async login({ request, response }: HttpContext) {
     const { email, password } = request.only(["email", "password"])
     console.log(`[LoginAttempt] Mencoba login dengan Email: "${email}", Panjang Password: ${password ? password.length : 'undefined'}`);
@@ -52,49 +53,44 @@ export default class SessionController { // Mengganti session_controller menjadi
 
   async register({ request, response }: HttpContext) {
     console.log('[SessionController] Method register dimulai.');
-    try {
-      const { email, password, fullName } = request.only(["email", "password", "fullName"])
-      console.log('[SessionController] Data request:', { email, fullName });
+    // Menggunakan request.only() sesuai kode terakhir Anda. Pertimbangkan validasi VineJS untuk produksi.
+    const { email, password, fullName } = request.only(["email", "password", "fullName"])
+    console.log('[SessionController] Data request:', { email, fullName });
 
-      // Pengecekan apakah email sudah ada
+    try {
       const existingUser = await User.query().where("email", email).first()
       if (existingUser) {
-        return response.status(400).send({ // Sebaiknya 409 Conflict untuk resource yang sudah ada
+        return response.status(409).send({ 
           message: "Email sudah terdaftar, silakan gunakan email lain atau login.",
         })
       }
 
-      // Membuat user baru
-      // Diasumsikan model User Anda menghash password secara otomatis melalui hook (misal, beforeSave)
+      // Diasumsikan model User Anda menghash password secara otomatis melalui hook
       const user = await User.create({
         fullName: fullName,
         email: email,
-        password: password, // Password dikirim apa adanya, model akan menghash
+        password: password, 
         avatar: null,
         googleId: null,
-        emailVerifiedAt: null,
+        emailVerifiedAt: null, 
       })
       console.log(`[SessionController] User berhasil disimpan. ID: ${user.id}, Email: ${user.email}`);
 
-      // --- Kirim Email Selamat Datang --- 👇
-      if (user.email && user.fullName) { // Pastikan fullName ada, karena digunakan di template email
+      if (user.email && user.fullName) {
         try {
-          console.log('[SessionController] Kondisi terpenuhi, memanggil sendWelcomeEmail...');
+          console.log('[SessionController] Kondisi terpenuhi, memanggil sendWelcomeEmail untuk registrasi biasa...');
           await sendWelcomeEmail(user.email, user.fullName);
-          console.log('[SessionController] Pemanggilan sendWelcomeEmail selesai.');
+          console.log('[SessionController] Pemanggilan sendWelcomeEmail selesai untuk registrasi biasa.');
         } catch (emailError) {
-          console.error('❌ [SessionController] Gagal mengirim email selamat datang:', emailError.message);
-          // Anda bisa memutuskan apakah error kirim email ini fatal atau tidak.
-          // Saat ini, proses registrasi akan tetap dianggap berhasil.
+          console.error('❌ [SessionController] Gagal mengirim email selamat datang (reg biasa):', emailError.message);
         }
       } else {
-        console.warn('[SessionController] Kondisi untuk mengirim email TIDAK terpenuhi (email atau fullName kosong).');
+        console.warn('[SessionController] Kondisi untuk mengirim email (reg biasa) TIDAK terpenuhi.');
       }
-      // --- Akhir Pengiriman Email Selamat Datang ---
 
       console.log('[SessionController] Method register selesai dengan sukses.');
-      return response.created({ // Menggunakan 201 Created untuk resource baru
-        message: "Registrasi berhasil! Selamat datang.", // Pesan bisa disesuaikan
+      return response.created({
+        message: "Registrasi berhasil! Selamat datang.",
         data: {
           user: {
             id: user.id,
@@ -105,7 +101,6 @@ export default class SessionController { // Mengganti session_controller menjadi
       })
     } catch (error) {
       console.error("REGISTER ERROR:", error.message)
-      // Cek spesifik untuk error duplikasi jika tidak ditangani oleh pengecekan existingUser di atas (misal, race condition)
       if (error.code === 'ER_DUP_ENTRY' || (error.message && error.message.toLowerCase().includes('unique constraint failed'))) {
         return response.status(409).send({ message: 'Email ini sudah terdaftar.' });
       }
@@ -116,14 +111,8 @@ export default class SessionController { // Mengganti session_controller menjadi
     }
   }
 
+
   async googleLogin({ request, response }: HttpContext) {
-    // ... (kode googleLogin Anda tetap sama, pastikan password dihandle jika membuat user baru)
-    // Jika membuat user baru dari Google, pastikan field password diisi dengan sesuatu
-    // (misal, string acak yang panjang) karena password di model User Anda mungkin wajib
-    // dan tidak di-hash otomatis jika dikirim string kosong.
-    // Contoh saat create user dari Google:
-    // password: crypto.randomBytes(16).toString('hex'), // Jika User model tidak auto-hash string kosong
-    // ... (sisa kode googleLogin Anda) ...
     try {
       if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
         console.error("❌ GOOGLE_CLIENT_ID atau GOOGLE_CLIENT_SECRET tidak dikonfigurasi")
@@ -144,7 +133,6 @@ export default class SessionController { // Mengganti session_controller menjadi
       })
 
       console.log("🔄 Verifying Google token...")
-
       const ticket = await this.googleClient.verifyIdToken({
         idToken: credential,
         audience: process.env.GOOGLE_CLIENT_ID,
@@ -153,30 +141,18 @@ export default class SessionController { // Mengganti session_controller menjadi
       const payload = ticket.getPayload()
       if (!payload) {
         console.error("❌ Invalid Google token payload")
-        return response.status(400).send({
-          message: "Invalid Google token",
-        })
+        return response.status(400).send({ message: "Invalid Google token" })
       }
 
       const { email, name, picture, sub: googleId, email_verified } = payload
-
-      if (!email) {
-        console.error("❌ Email not provided by Google")
-        return response.status(400).send({
-          message: "Email tidak tersedia dari Google. Pastikan Anda memberikan izin akses email.",
-        })
+      if (!email || !googleId) {
+        console.error("❌ Email atau Google ID tidak tersedia dari Google payload")
+        return response.status(400).send({ message: "Informasi email atau Google ID tidak lengkap dari Google." })
       }
-
-      if (!googleId) {
-        console.error("❌ Google ID not provided")
-        return response.status(400).send({
-          message: "Google ID tidak valid.",
-        })
-      }
-
       console.log("✅ Google payload:", { email, name, picture, googleId, email_verified });
 
       let user = await User.findBy("email", email)
+      let isNewUserCreatedViaGoogle = false; // Flag untuk menandai jika user baru dibuat
 
       if (!user) {
         console.log("🔄 Membuat user baru dari Google...")
@@ -185,37 +161,46 @@ export default class SessionController { // Mengganti session_controller menjadi
           fullName: name || "Pengguna Google",
           avatar: picture || null,
           googleId: googleId,
-          // Jika model User Anda mengharuskan password dan menghashnya otomatis:
-          
+          password: crypto.randomBytes(16).toString('hex'), // Password acak
           emailVerifiedAt: email_verified ? DateTime.now() : null,
         })
+        isNewUserCreatedViaGoogle = true; // Tandai sebagai user baru
         console.log("✅ User baru dari Google dibuat:", user.email)
       } else {
         console.log("🔄 Memperbarui user yang ada dengan info Google...")
         let needsUpdate = false
         if (!user.googleId && googleId) {
-          user.googleId = googleId
-          needsUpdate = true
+          user.googleId = googleId;
+          needsUpdate = true;
         }
         if (!user.avatar && picture) {
-          user.avatar = picture
-          needsUpdate = true
+          user.avatar = picture;
+          needsUpdate = true;
         }
-        if (!user.emailVerifiedAt && email_verified) {
-          user.emailVerifiedAt = DateTime.now()
-          needsUpdate = true
+        if (!user.emailVerifiedAt && email_verified) { // Jika email belum terverifikasi & Google bilang sudah
+          user.emailVerifiedAt = DateTime.now();
+          needsUpdate = true;
         }
-        // Jika user sudah ada tapi belum punya password (misal daftar via Google dulu lalu coba set password),
-        // bagian ini tidak dihandle di sini. Ini hanya link akun Google.
         if (needsUpdate) {
           await user.save()
           console.log("✅ User yang ada diperbarui dengan info Google:", user.email)
         }
       }
 
+      // --- Kirim Email Selamat Datang jika user baru dibuat via Google --- 👇
+      if (isNewUserCreatedViaGoogle && user.email && user.fullName) {
+        try {
+          console.log('[SessionController-GoogleLogin] Kondisi terpenuhi, memanggil sendWelcomeEmail...');
+          await sendWelcomeEmail(user.email, user.fullName);
+          console.log('[SessionController-GoogleLogin] Pemanggilan sendWelcomeEmail selesai.');
+        } catch (emailError) {
+          console.error('❌ [SessionController-GoogleLogin] Gagal mengirim email selamat datang:', emailError.message);
+        }
+      }
+      // --- Akhir Pengiriman Email Selamat Datang ---
+
       // @ts-ignore
       const token = await User.accessTokens.create(user, ["*"], { expiresIn: "3 days" })
-
       console.log("✅ Google login successful for:", user.email)
 
       return response.ok({
@@ -233,13 +218,13 @@ export default class SessionController { // Mengganti session_controller menjadi
     } catch (error) {
       console.error("❌ GOOGLE LOGIN ERROR:", error)
       if (error.code === "E_VALIDATION_FAILURE") {
-        return response.status(400).send({ message: "Data tidak valid", errors: error.messages, })
+        return response.status(400).send({ message: "Data tidak valid", errors: error.messages })
       }
-      if (error.message && error.message.includes("Token used too late")) {
-        return response.status(400).send({ message: "Google token sudah expired, silakan coba lagi.", })
+      if (error.message?.includes("Token used too late")) {
+        return response.status(400).send({ message: "Google token sudah expired, silakan coba lagi." })
       }
-      if (error.message && error.message.includes("Invalid token")) {
-        return response.status(400).send({ message: "Google token tidak valid, silakan coba lagi.", })
+      if (error.message?.includes("Invalid token")) {
+        return response.status(400).send({ message: "Google token tidak valid, silakan coba lagi." })
       }
       return response.status(500).send({
         message: "Login dengan Google gagal, silakan coba lagi.",
@@ -253,15 +238,10 @@ export default class SessionController { // Mengganti session_controller menjadi
       const user = await auth.getUserOrFail()
       // @ts-ignore
       await User.accessTokens.delete(user, user.currentAccessToken.identifier)
-
-      return response.ok({
-        message: "Success Logout",
-      })
+      return response.ok({ message: "Success Logout" })
     } catch (error) {
       console.error("LOGOUT ERROR:", error.message)
-      return response.status(500).send({
-        message: "Logout gagal, silakan coba lagi.",
-      })
+      return response.status(500).send({ message: "Logout gagal, silakan coba lagi." })
     }
   }
 }
